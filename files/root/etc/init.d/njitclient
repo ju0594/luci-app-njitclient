@@ -9,19 +9,27 @@ run_njit()
 	if [ $enable ]; then
 		local username
 		local password
-		local domain
 		local ifname
 		
 		config_get username $1 username
 		config_get password $1 password
-		config_get domain $1 domain
 		config_get ifname $1 ifname
 		
-		if [ "$domain" != "" ]; then
-			njit-client $username@$domain $password $ifname &
-		else
-			njit-client $username $password $ifname &
-		fi
+		result=1
+		while [ $result -eq 1 ]
+		do
+			wanip=$(ifconfig $ifname 2> /dev/null | grep 'inet addr' | awk '{print $2}' | cut -d: -f2)
+			if [ "$wanip" = "" ]||[ "$wanip" = "0.0.0.0" ]; then
+				ifup wan
+				sleep 5
+			else
+				result=0
+			fi
+		done
+	
+		sleep 3
+		
+		njit-client $username $password $ifname >/dev/null 2>&1 &
 		
 		echo "NJIT Client has started."
 	fi
@@ -35,8 +43,10 @@ start()
 
 stop()
 {
-	killall njit-client
-	killall udhcpc
-	
+	if [ -n "`pidof njit-client`" ] ; then
+		kill -9 "`pidof njit-client`"
+		sleep 3
+	fi
+
 	echo "NJIT Client has stoped."
 }
